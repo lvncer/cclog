@@ -1,0 +1,75 @@
+# Source files (not needed in published package)
+src/
+*.ts
+*.tsx
+
+# Development files
+design/
+.github/
+.git/
+.gitignore
+.npmignore
+tsconfig.json
+
+# Development dependencies
+node_modules/
+package-lock.json
+yarn.lock
+bun.lock
+
+# Build tools
+.eslintrc*
+.prettierrc*
+jest.config.*
+*.config.js
+
+# Documentation (keep README.md and LICENSE)
+CHANGELOG.md
+CONTRIBUTING.md
+*.md
+!README.md
+!LICENSE
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.*
+*.spec.*
+
+# Development scripts
+scripts/
+tools/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env*
+!.env.example
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# cursor
+.cursor/
+.cursorrules
+
+# claude code
+.claude/
+CLAUDE.md
+
+# windsurf
+.windsurf/
+.windsurfrules

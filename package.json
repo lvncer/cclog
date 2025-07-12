@@ -1,0 +1,50 @@
+{
+  "name": "@lvncer/cclog",
+  "license": "MIT",
+  "version": "1.0.0",
+  "author": "lvncer",
+  "description": "TypeScript implementation of cclog - Browse Claude Code conversation history",
+  "main": "lib/index.js",
+  "homepage": "https://github.com/lvncer/cclog",
+  "bin": {
+    "cclog": "./bin/cclog"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node lib/index.js",
+    "clean": "rm -rf lib"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cli",
+    "conversation",
+    "history",
+    "browser",
+    "interactive",
+    "typescript"
+  ],
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lvncer/cclog.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lvncer/cclog/issues"
+  }
+}
