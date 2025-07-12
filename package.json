@@ -1,7 +1,7 @@
 {
   "name": "@lvncer/cclog",
   "license": "MIT",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": "lvncer",
   "description": "TypeScript implementation of cclog - Browse Claude Code conversation history",
   "main": "lib/index.js",
@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/lvncer/cclog.git"
+    "url": "git+https://github.com/lvncer/cclog.git"
   },
   "bugs": {
     "url": "https://github.com/lvncer/cclog/issues"

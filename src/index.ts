@@ -11,6 +11,7 @@ import {
 } from "./ui/renderer";
 import { colors } from "./ui/colors";
 import { SelectableItem } from "./types/ui";
+import { spawn } from "child_process";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -162,7 +163,11 @@ async function showProjects(): Promise<void> {
   if (selected && !headerItems.includes(selected)) {
     if (selected.action === "view") {
       // Ctrl-V: Change to project directory and show sessions
-      console.log(`cd ${selected.value} && cclog`);
+      const proc = spawn('sh', ['-c', `cd "${selected.value}" && cclog`], { 
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      proc.on('exit', (code: number | null) => process.exit(code ?? 0));
     } else if (selected.action === "path") {
       // Ctrl-P: Return project path
       console.log(selected.value);

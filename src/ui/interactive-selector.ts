@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import { SelectableItem, SelectorOptions } from "../types/ui";
 import { colors } from "./colors";
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 
 export class InteractiveSelector<T = any> {
   private items: SelectableItem<T>[];
@@ -132,8 +132,17 @@ export class InteractiveSelector<T = any> {
           if (selectedItem && this.selectedIndex >= this.headerLines) {
             cleanup();
             const sessionId = String(selectedItem.value);
-            const proc = spawn('claude', ['-r', sessionId], { stdio: 'inherit' });
-            proc.on('exit', (code: number | null) => process.exit(code ?? 0));
+            
+            // Check if claude command exists
+            try {
+              execSync('which claude', { stdio: 'ignore' });
+              const proc = spawn('claude', ['-r', sessionId], { stdio: 'inherit' });
+              proc.on('exit', (code: number | null) => process.exit(code ?? 0));
+            } catch (error) {
+              console.error(colors.error('Error: claude command not found. Please install claude CLI first.'));
+              console.error(colors.info('Install with: npm install -g @anthropic-ai/claude'));
+              process.exit(1);
+            }
           }
         }
         break;
@@ -221,7 +230,16 @@ export class InteractiveSelector<T = any> {
     // Show help with additional keybindings
     console.log(colors.info("\n↑↓: Navigate, Enter: Select, Ctrl+C: Exit"));
     if (this.selectedIndex >= this.headerLines) {
-      console.log(colors.info("Ctrl+V: View, Ctrl+P: Path, Ctrl+R: Resume"));
+      // Check if we're in projects view (items have path-like values)
+      const isProjectsView = this.items.some(item => 
+        item.value && typeof item.value === 'string' && item.value.includes('/')
+      );
+      
+      if (isProjectsView) {
+        console.log(colors.info("Ctrl+V: Change dir & show sessions, Ctrl+P: Path"));
+      } else {
+        console.log(colors.info("Ctrl+V: View, Ctrl+P: Path, Ctrl+R: Resume"));
+      }
     }
   }
 
