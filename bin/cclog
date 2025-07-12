@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const project_manager_1 = require("./core/project-manager");
-const session_parser_1 = require("./core/session-parser");
-const interactive_selector_1 = require("./ui/interactive-selector");
-const renderer_1 = require("./ui/renderer");
-const colors_1 = require("./ui/colors");
+const project_manager_1 = require("../lib/core/project-manager");
+const session_parser_1 = require("../lib/core/session-parser");
+const interactive_selector_1 = require("../lib/ui/interactive-selector");
+const renderer_1 = require("../lib/ui/renderer");
+const colors_1 = require("../lib/ui/colors");
 const child_process_1 = require("child_process");
 async function main() {
     const args = process.argv.slice(2);
