@@ -12,6 +12,9 @@ import {
 import { colors } from "./ui/colors";
 import { SelectableItem } from "./types/ui";
 import { spawn } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+import { SessionSummary } from "./types/session";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -130,11 +133,10 @@ async function showProjects(): Promise<void> {
   // Create header items
   const headerItems: SelectableItem[] = [
     {
-      display: "Claude Code Projects (sorted by recent activity)",
+      display: "Claude Code Projects (sorted by recent activity)\n",
       searchText: "",
       value: "",
     },
-    { display: "Enter: Show cd command, Ctrl+C: Exit", searchText: "", value: "" },
     {
       display: "LAST_ACTIVE  SESSIONS  PROJECT_PATH",
       searchText: "",
@@ -142,17 +144,23 @@ async function showProjects(): Promise<void> {
     },
   ];
 
-  const projectItems: SelectableItem[] = projects.map((project) => ({
-    display: renderProjectList(project),
-    searchText: project.path,
-    value: project.path,
-  }));
+  const projectItems: SelectableItem[] = projects.map((project) => {
+    const exists = fs.existsSync(project.path);
+    return {
+      display: exists
+        ? renderProjectList(project)
+        : colors.error(renderProjectList(project) + " (NOT FOUND)"),
+      searchText: project.path,
+      value: project.path,
+      exists,
+    };
+  });
 
   const allItems = [...headerItems, ...projectItems];
 
   const selector = new InteractiveSelector(allItems, {
     height: 15,
-    headerLines: 3,
+    headerLines: 2,
     preview: (item) => {
       if (headerItems.includes(item)) return "";
       return `cd ${item.value}`;
@@ -161,12 +169,40 @@ async function showProjects(): Promise<void> {
 
   const selected = await selector.show();
   if (selected && !headerItems.includes(selected)) {
+    if (!selected.exists) {
+      console.error(colors.error("パスが存在しません: " + selected.value));
+      return;
+    }
     if (selected.action === "path") {
       // Ctrl-P: Return project path
       console.log(selected.value);
+    } else if (selected.action === "sessions") {
+      // Ctrl-S: Show sessions for project
+      await showProjectSessions(selected.value);
+    } else if (selected.action === "files") {
+      // Ctrl-F: Get session file names
+      await showSessionFileNames(selected.value);
     } else {
-      // Enter: Show project path (for cd command)
-      console.log(`cd ${selected.value}`);
+      // Enter: Change to project directory
+      try {
+        // シェルコマンドとしてcdを実行し、新しいシェルを起動
+        const proc = spawn(
+          "sh",
+          ["-c", `cd "${selected.value}" && exec $SHELL`],
+          {
+            stdio: "inherit",
+            cwd: process.cwd(),
+          }
+        );
+        proc.on("exit", (code: number | null) => process.exit(code ?? 0));
+      } catch (error) {
+        console.error(
+          colors.error(`ディレクトリの変更に失敗しました: ${selected.value}`)
+        );
+        console.error(
+          colors.error(error instanceof Error ? error.message : "Unknown error")
+        );
+      }
     }
   }
 }
@@ -199,33 +235,170 @@ async function showSessionInfo(filePath: string): Promise<void> {
   console.log(renderSessionInfo(session));
 }
 
+async function showProjectSessions(projectPath: string): Promise<void> {
+  const projectManager = new ProjectManager();
+  const projects = await projectManager.getAllProjects();
+  const project = projects.find((p) => p.path === projectPath);
+
+  if (!project) {
+    console.error(colors.error("プロジェクトが見つかりません: " + projectPath));
+    return;
+  }
+
+  // プロジェクトのセッション一覧を表示
+  const claudeDir = path.join(process.env.HOME || "", ".claude", "projects");
+  const projectDir = path.join(claudeDir, project.encodedName);
+
+  if (!fs.existsSync(projectDir)) {
+    console.error(
+      colors.error("プロジェクトディレクトリが見つかりません: " + projectDir)
+    );
+    return;
+  }
+
+  const files = await fs.promises.readdir(projectDir);
+  const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+
+  if (jsonlFiles.length === 0) {
+    console.log("このプロジェクトにはセッションがありません");
+    return;
+  }
+
+  const sessions: SessionSummary[] = [];
+  for (const file of jsonlFiles) {
+    const filePath = path.join(projectDir, file);
+    const parser = new SessionParser(filePath);
+    try {
+      const session = await parser.parseMinimal();
+      sessions.push(session);
+    } catch (e) {
+      // Skip invalid files
+    }
+  }
+
+  sessions.sort(
+    (a, b) => b.modificationTime.getTime() - a.modificationTime.getTime()
+  );
+
+  console.log(colors.info(`\nプロジェクト: ${projectPath}`));
+  console.log(colors.info(`セッション数: ${sessions.length}\n`));
+
+  // セッション一覧を表示
+  const headerItems: SelectableItem[] = [
+    {
+      display: "CREATED             MESSAGES  FIRST_MESSAGE",
+      searchText: "",
+      value: "",
+    },
+  ];
+
+  const sessionItems: SelectableItem[] = sessions.map((session) => ({
+    display: renderSessionList(session),
+    searchText: `${session.sessionId} ${session.firstUserMessage}`,
+    value: session.sessionId,
+  }));
+
+  const allItems = [...headerItems, ...sessionItems];
+
+  const selector = new InteractiveSelector(allItems, {
+    height: 20,
+    headerLines: 1,
+    preview: (item) => {
+      if (headerItems.includes(item)) return "";
+      const session = sessions.find((s) => s.sessionId === item.value);
+      return session ? renderSessionInfo(session) : "";
+    },
+  });
+
+  const selected = await selector.show();
+  if (selected && !headerItems.includes(selected)) {
+    if (selected.action === "view") {
+      // Ctrl-V: View session content
+      const session = sessions.find((s) => s.sessionId === selected.value);
+      if (session) {
+        await viewSession(session.filePath);
+      }
+    } else if (selected.action === "path") {
+      // Ctrl-P: Return file path
+      const session = sessions.find((s) => s.sessionId === selected.value);
+      if (session) {
+        console.log(session.filePath);
+      }
+    } else {
+      // Enter: Return session ID
+      console.log(selected.value);
+    }
+  }
+}
+
+async function showSessionFileNames(projectPath: string): Promise<void> {
+  const projectManager = new ProjectManager();
+  const projects = await projectManager.getAllProjects();
+  const project = projects.find((p) => p.path === projectPath);
+
+  if (!project) {
+    console.error(colors.error("プロジェクトが見つかりません: " + projectPath));
+    return;
+  }
+
+  // プロジェクトのセッションファイル名一覧を表示
+  const claudeDir = path.join(process.env.HOME || "", ".claude", "projects");
+  const projectDir = path.join(claudeDir, project.encodedName);
+
+  if (!fs.existsSync(projectDir)) {
+    console.error(
+      colors.error("プロジェクトディレクトリが見つかりません: " + projectDir)
+    );
+    return;
+  }
+
+  const files = await fs.promises.readdir(projectDir);
+  const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+
+  if (jsonlFiles.length === 0) {
+    console.log("このプロジェクトにはセッションがありません");
+    return;
+  }
+
+  console.log(colors.info(`\nプロジェクト: ${projectPath}`));
+  console.log(colors.info(`セッションファイル一覧:\n`));
+
+  jsonlFiles.forEach((fileName, index) => {
+    console.log(`${index + 1}. ${fileName}`);
+  });
+
+  console.log(
+    colors.info(`\n合計: ${jsonlFiles.length}個のセッションファイル`)
+  );
+}
+
 function showHelp(): void {
   console.log(`cclog - Browse Claude Code conversation history
 
 Usage:
-  cclog [options]           Browse sessions in current directory
-  cclog projects            Browse all projects
-  cclog view <session>      View session content
-  cclog info <session>      Show session information
+  cclog [options]          Browse sessions in current directory
+  cclog projects           Browse all projects
+  cclog view <session>     View session content
+  cclog info <session>     Show session information
   cclog help               Show this help message
 
 Options:
-  projects, p                       Browse all projects
-  view, v                          View session content
-  info, i                          Show session information
-  help, h, --help, -h              Show help
+  projects, p              Browse all projects
+  view, v                  View session content
+  info, i                  Show session information
+  help, h, --help, -h      Show help
 
 Navigation:
-  ↑↓ keys                          Navigate list
-  Enter                            Select item
-  Ctrl+C                           Exit
-  Type text                        Filter/search items
+  ↑↓ keys                  Navigate list
+  Enter                    Select item
+  Ctrl+C                   Exit
+  Type text                Filter/search items
 
 Session Actions:
-  Enter                            Return session ID
-  Ctrl+V                           View session content
-  Ctrl+P                           Return file path
-  Ctrl+R                           Resume session with claude -r`);
+  Enter                    Return session ID
+  Ctrl+V                   View session content
+  Ctrl+P                   Return file path
+  Ctrl+R                   Resume session with claude -r`);
 }
 
 // Handle uncaught errors

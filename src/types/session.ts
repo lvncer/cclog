@@ -1,5 +1,5 @@
 export interface RawSessionData {
-  type: 'user' | 'assistant' | 'summary';
+  type: "user" | "assistant" | "summary";
   timestamp?: string;
   message?: {
     content: string | ContentItem[];
@@ -8,7 +8,7 @@ export interface RawSessionData {
 }
 
 export interface ContentItem {
-  type: 'text' | 'tool_use' | 'tool_result';
+  type: "text" | "tool_use" | "tool_result";
   text?: string;
   name?: string;
   tool_use_id?: string;
@@ -27,7 +27,7 @@ export interface SessionSummary {
 }
 
 export interface ParsedMessage {
-  type: 'user' | 'assistant';
+  type: "user" | "assistant";
   timestamp: string;
   typeLabel: string;
   content: string;

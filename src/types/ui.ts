@@ -2,7 +2,8 @@ export interface SelectableItem<T = any> {
   display: string;
   searchText: string;
   value: T;
-  action?: "view" | "path" | "resume";
+  exists?: boolean; // パス存在チェック用
+  action?: "view" | "path" | "resume" | "sessions" | "files";
 }
 
 export interface SelectorOptions {

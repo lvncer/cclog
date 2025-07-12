@@ -136,6 +136,28 @@ export class InteractiveSelector<T = any> {
         }
         break;
 
+      case "s":
+        if (key.ctrl) {
+          // Ctrl-S: Show sessions for project
+          const selectedItem = this.filtered[this.selectedIndex];
+          if (selectedItem && this.selectedIndex >= this.headerLines) {
+            cleanup();
+            resolve({ ...selectedItem, action: "sessions" });
+          }
+        }
+        break;
+
+      case "f":
+        if (key.ctrl) {
+          // Ctrl-F: Get session file names
+          const selectedItem = this.filtered[this.selectedIndex];
+          if (selectedItem && this.selectedIndex >= this.headerLines) {
+            cleanup();
+            resolve({ ...selectedItem, action: "files" });
+          }
+        }
+        break;
+
       case "r":
         if (key.ctrl) {
           // Ctrl-R: Resume session (実行)
@@ -247,7 +269,7 @@ export class InteractiveSelector<T = any> {
     }
 
     // Show help with additional keybindings
-    console.log(colors.info("\n↑↓: Navigate, Enter: Select, Ctrl+C: Exit"));
+    console.log();
     if (this.selectedIndex >= this.headerLines) {
       // Check if we're in projects view (items have path-like values)
       const isProjectsView = this.items.some(
@@ -258,9 +280,19 @@ export class InteractiveSelector<T = any> {
       );
 
       if (isProjectsView) {
-        console.log(colors.info("Ctrl+P: Path"));
+        console.log(
+          colors.info(
+            "\n↑↓: Navigate, Enter: Change Directory, Ctrl+C: Exit\n"
+          ),
+          colors.info(
+            "Ctrl+P: Show Paths, Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n"
+          )
+        );
       } else {
-        console.log(colors.info("Ctrl+V: View, Ctrl+P: Path, Ctrl+R: Resume"));
+        console.log(
+          colors.info("\n↑↓: Navigate, Ctrl+C: Exit\n"),
+          colors.info("Ctrl+V: View, Ctrl+P: Show Paths, Ctrl+R: Resume\n")
+        );
       }
     }
   }

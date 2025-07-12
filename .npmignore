@@ -1,5 +1,7 @@
 # Development files
 design/
+docs/
+public/
 .github/
 .git/
 .gitignore
