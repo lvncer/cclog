@@ -56,12 +56,17 @@ cclog help
 - 文字入力 - リアルタイム検索
 - `Backspace` - 検索文字削除
 
-#### セッション操作
+#### セッション一覧での操作
 
 - `Enter` - セッション ID を返す
 - `Ctrl+V` - セッション内容を表示
 - `Ctrl+P` - ファイルパスを返す
 - `Ctrl+R` - セッションを再開（claude -r）
+
+#### プロジェクト一覧での操作
+
+- `Enter` - cd コマンドを表示
+- `Ctrl+P` - プロジェクトパスを返す
 
 ## 🎯 使用例
 
@@ -95,13 +100,14 @@ cclog projects
 
 ```sh
 Claude Code Projects (sorted by recent activity)
-Enter: Show project path
+Enter: Show cd command, Ctrl+C: Exit
 LAST_ACTIVE  SESSIONS  PROJECT_PATH
 > 2h ago              5  /path/to/active-project
   1d ago              3  /path/to/another-project
   3d ago              8  /path/to/old-project
 
 ↑↓: Navigate, Enter: Select, Ctrl+C: Exit
+Ctrl+P: Path
 ```
 
 ## 🔧 開発者向け

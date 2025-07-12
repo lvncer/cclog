@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import { SelectableItem, SelectorOptions } from "../types/ui";
 import { colors } from "./colors";
-import { spawn, execSync } from 'child_process';
+import { spawn, execSync } from "child_process";
 
 export class InteractiveSelector<T = any> {
   private items: SelectableItem<T>[];
@@ -105,11 +105,22 @@ export class InteractiveSelector<T = any> {
 
       case "v":
         if (key.ctrl) {
-          // Ctrl-V: View session content
+          // Ctrl-V: View session content (only for sessions, not projects)
           const selectedItem = this.filtered[this.selectedIndex];
           if (selectedItem && this.selectedIndex >= this.headerLines) {
-            cleanup();
-            resolve({ ...selectedItem, action: "view" });
+            // Check if we're in projects view (items have path-like values)
+            const isProjectsView = this.items.some(
+              (item) =>
+                item.value &&
+                typeof item.value === "string" &&
+                item.value.includes("/")
+            );
+
+            if (!isProjectsView) {
+              cleanup();
+              resolve({ ...selectedItem, action: "view" });
+            }
+            // For projects view, Ctrl-V does nothing (as per README)
           }
         }
         break;
@@ -132,15 +143,23 @@ export class InteractiveSelector<T = any> {
           if (selectedItem && this.selectedIndex >= this.headerLines) {
             cleanup();
             const sessionId = String(selectedItem.value);
-            
+
             // Check if claude command exists
             try {
-              execSync('which claude', { stdio: 'ignore' });
-              const proc = spawn('claude', ['-r', sessionId], { stdio: 'inherit' });
-              proc.on('exit', (code: number | null) => process.exit(code ?? 0));
+              execSync("which claude", { stdio: "ignore" });
+              const proc = spawn("claude", ["-r", sessionId], {
+                stdio: "inherit",
+              });
+              proc.on("exit", (code: number | null) => process.exit(code ?? 0));
             } catch (error) {
-              console.error(colors.error('Error: claude command not found. Please install claude CLI first.'));
-              console.error(colors.info('Install with: npm install -g @anthropic-ai/claude'));
+              console.error(
+                colors.error(
+                  "Error: claude command not found. Please install claude CLI first."
+                )
+              );
+              console.error(
+                colors.info("Install with: npm install -g @anthropic-ai/claude")
+              );
               process.exit(1);
             }
           }
@@ -231,12 +250,15 @@ export class InteractiveSelector<T = any> {
     console.log(colors.info("\n↑↓: Navigate, Enter: Select, Ctrl+C: Exit"));
     if (this.selectedIndex >= this.headerLines) {
       // Check if we're in projects view (items have path-like values)
-      const isProjectsView = this.items.some(item => 
-        item.value && typeof item.value === 'string' && item.value.includes('/')
+      const isProjectsView = this.items.some(
+        (item) =>
+          item.value &&
+          typeof item.value === "string" &&
+          item.value.includes("/")
       );
-      
+
       if (isProjectsView) {
-        console.log(colors.info("Ctrl+V: Change dir & show sessions, Ctrl+P: Path"));
+        console.log(colors.info("Ctrl+P: Path"));
       } else {
         console.log(colors.info("Ctrl+V: View, Ctrl+P: Path, Ctrl+R: Resume"));
       }

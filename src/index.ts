@@ -134,7 +134,7 @@ async function showProjects(): Promise<void> {
       searchText: "",
       value: "",
     },
-    { display: "Enter: Show project path", searchText: "", value: "" },
+    { display: "Enter: Show cd command, Ctrl+C: Exit", searchText: "", value: "" },
     {
       display: "LAST_ACTIVE  SESSIONS  PROJECT_PATH",
       searchText: "",
@@ -161,18 +161,11 @@ async function showProjects(): Promise<void> {
 
   const selected = await selector.show();
   if (selected && !headerItems.includes(selected)) {
-    if (selected.action === "view") {
-      // Ctrl-V: Change to project directory and show sessions
-      const proc = spawn('sh', ['-c', `cd "${selected.value}" && cclog`], { 
-        stdio: 'inherit',
-        cwd: process.cwd()
-      });
-      proc.on('exit', (code: number | null) => process.exit(code ?? 0));
-    } else if (selected.action === "path") {
+    if (selected.action === "path") {
       // Ctrl-P: Return project path
       console.log(selected.value);
     } else {
-      // Enter: Show project path
+      // Enter: Show project path (for cd command)
       console.log(`cd ${selected.value}`);
     }
   }
