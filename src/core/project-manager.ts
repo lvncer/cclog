@@ -75,7 +75,7 @@ export class ProjectManager {
       try {
         const session = await parser.parseMinimal();
         sessions.push(session);
-      } catch (e) {
+      } catch {
         // Skip invalid files
       }
     }

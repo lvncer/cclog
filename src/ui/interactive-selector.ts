@@ -127,11 +127,22 @@ export class InteractiveSelector<T = any> {
 
       case "p":
         if (key.ctrl) {
-          // Ctrl-P: Return file path
+          // Ctrl-P: Return file path (only for sessions, not projects)
           const selectedItem = this.filtered[this.selectedIndex];
           if (selectedItem && this.selectedIndex >= this.headerLines) {
-            cleanup();
-            resolve({ ...selectedItem, action: "path" });
+            // Check if we're in projects view (items have path-like values)
+            const isProjectsView = this.items.some(
+              (item) =>
+                item.value &&
+                typeof item.value === "string" &&
+                item.value.includes("/")
+            );
+
+            if (!isProjectsView) {
+              cleanup();
+              resolve({ ...selectedItem, action: "path" });
+            }
+            // For projects view, Ctrl-P does nothing
           }
         }
         break;

@@ -167,11 +167,30 @@ async function showSessions() {
         shouldContinue = false;
       } else {
         try {
-          (0, child_process_1.execSync)("which claude", { stdio: "ignore" });
-          (0, child_process_1.execSync)(`claude -r ${String(selected.value)}`, {
-            stdio: "inherit",
-          });
-          process.exit(0);
+          const session = sessions.find((s) => s.sessionId === selected.value);
+          if (!session) {
+            console.error(colors_1.colors.error("Session not found"));
+            shouldContinue = false;
+            return;
+          }
+          const projectPath = session.projectPath;
+          if (!projectPath) {
+            console.error(
+              colors_1.colors.error("Project path not found in session data")
+            );
+            shouldContinue = false;
+            return;
+          }
+          const proc = (0, child_process_1.spawn)(
+            "claude",
+            ["-r", String(selected.value)],
+            {
+              stdio: "inherit",
+              env: { ...process.env },
+              cwd: projectPath,
+            }
+          );
+          proc.on("exit", (code) => process.exit(code ?? 0));
         } catch (error) {
           console.error(
             colors_1.colors.error(
@@ -210,8 +229,7 @@ async function showProjects() {
       value: "",
     },
     {
-      display:
-        "Ctrl+P: Show Paths, Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n",
+      display: "Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n",
       searchText: "",
       value: "",
     },
@@ -251,26 +269,7 @@ async function showProjects() {
       );
       return;
     }
-    if (selected.action === "path") {
-      try {
-        (0, child_process_1.execSync)("which claude", { stdio: "ignore" });
-        (0, child_process_1.execSync)(`claude -r ${String(selected.value)}`, {
-          stdio: "inherit",
-        });
-        process.exit(0);
-      } catch (error) {
-        console.error(
-          colors_1.colors.error(
-            "Error: claude command not found. Please install claude CLI first."
-          )
-        );
-        console.error(
-          colors_1.colors.info(
-            "Install with: npm install -g @anthropic-ai/claude"
-          )
-        );
-      }
-    } else if (selected.action === "sessions") {
+    if (selected.action === "sessions") {
       await showProjectSessions(selected.value);
     } else if (selected.action === "files") {
       await showSessionFileNames(selected.value);
@@ -378,7 +377,7 @@ async function showProjectSessions(projectPath) {
     try {
       const session = await parser.parseMinimal();
       sessions.push(session);
-    } catch (e) {}
+    } catch {}
   }
   sessions.sort(
     (a, b) => b.modificationTime.getTime() - a.modificationTime.getTime()
@@ -387,7 +386,7 @@ async function showProjectSessions(projectPath) {
   console.log(colors_1.colors.info(`セッション数: ${sessions.length}\n`));
   const headerItems = [
     {
-      display: "CREATED             MESSAGES  FIRST_MESSAGE",
+      display: "CREATED              MESSAGES  FIRST_MESSAGE",
       searchText: "",
       value: "",
     },
@@ -421,11 +420,28 @@ async function showProjectSessions(projectPath) {
       }
     } else {
       try {
-        (0, child_process_1.execSync)("which claude", { stdio: "ignore" });
-        (0, child_process_1.execSync)(`claude -r ${String(selected.value)}`, {
-          stdio: "inherit",
-        });
-        process.exit(0);
+        const session = sessions.find((s) => s.sessionId === selected.value);
+        if (!session) {
+          console.error(colors_1.colors.error("Session not found"));
+          return;
+        }
+        const projectPath = session.projectPath;
+        if (!projectPath) {
+          console.error(
+            colors_1.colors.error("Project path not found in session data")
+          );
+          return;
+        }
+        const proc = (0, child_process_1.spawn)(
+          "claude",
+          ["-r", String(selected.value)],
+          {
+            stdio: "inherit",
+            env: { ...process.env },
+            cwd: projectPath,
+          }
+        );
+        proc.on("exit", (code) => process.exit(code ?? 0));
       } catch (error) {
         console.error(
           colors_1.colors.error(
@@ -501,8 +517,12 @@ Navigation:
 Session Actions:
   Enter                    Resume session (claude -r)
   Ctrl+V                   View session content
-  Ctrl+P                   Return file path
-  Ctrl+R                   Resume session with claude -r`);
+  Ctrl+P                   Return file path (sessions only)
+
+Project Actions:
+  Enter                    Change to project directory
+  Ctrl+S                   Show sessions for project
+  Ctrl+F                   Get session file names`);
 }
 process.on("unhandledRejection", (reason, promise) => {
   console.error(

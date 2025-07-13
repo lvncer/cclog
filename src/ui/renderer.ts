@@ -3,9 +3,19 @@ import { Project } from "../types/project";
 import { colors } from "./colors";
 
 export function renderSessionList(session: SessionSummary): string {
-  const startTime = session.startTimestamp.toLocaleString().substring(0, 19);
+  // Format date with zero-padding (YYYY/MM/DD HH:MM:SS)
+  const date = session.startTimestamp;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  const startTime = `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+
+  // Format message count to fixed width (8 characters) - left aligned
   const msgStr = session.messageCount.toString();
-  const messageCount = msgStr.length >= 8 ? msgStr : msgStr.padEnd(8);
+  const messageCount = msgStr.padEnd(8);
 
   // Truncate long messages
   let message = session.firstUserMessage;
@@ -13,7 +23,7 @@ export function renderSessionList(session: SessionSummary): string {
     message = message.substring(0, 57) + "...";
   }
 
-  return `${startTime} ${messageCount}  ${message}`;
+  return `${startTime}  ${messageCount}  ${message}`;
 }
 
 export function renderProjectList(project: Project): string {

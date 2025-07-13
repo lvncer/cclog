@@ -5,6 +5,8 @@ export interface RawSessionData {
     content: string | ContentItem[];
   };
   uuid?: string;
+  sessionId?: string;
+  cwd?: string;
 }
 
 export interface ContentItem {
@@ -25,6 +27,7 @@ export interface SessionSummary {
   modificationTime: Date;
   matchedSummaries: string[] | undefined;
   previewMessages?: ParsedMessage[];
+  projectPath?: string | undefined;
 }
 
 export interface ParsedMessage {

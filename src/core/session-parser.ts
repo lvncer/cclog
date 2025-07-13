@@ -18,7 +18,49 @@ export class SessionParser {
     const { maxLines = 20, includeSummaries = false } = options;
 
     const stats = await fs.promises.stat(this.filePath);
-    const sessionId = path.basename(this.filePath, ".jsonl");
+
+    // Try to get session ID and project path from file content first, fallback to filename
+    let sessionId = path.basename(this.filePath, ".jsonl");
+    let projectPath: string | undefined;
+
+    try {
+      const fileStream = fs.createReadStream(this.filePath);
+      const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity,
+      });
+
+      let lineCount = 0;
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+
+        try {
+          const data: RawSessionData = JSON.parse(line);
+
+          if (data.sessionId && !sessionId) {
+            sessionId = data.sessionId;
+          }
+          if (data.cwd && !projectPath) {
+            projectPath = data.cwd;
+          }
+
+          // If we found both sessionId and projectPath, we can stop
+          if (sessionId && projectPath) {
+            break;
+          }
+
+          // Check up to 10 lines to find the required fields
+          lineCount++;
+          if (lineCount >= 10) {
+            break;
+          }
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    } catch (error) {
+      // Fallback to filename-based session ID
+    }
 
     let startTimestamp: Date | undefined;
     let lastTimestamp: Date | undefined;
@@ -87,7 +129,7 @@ export class SessionParser {
     // Get preview messages
     const previewMessages = await this.parsePreview(10);
 
-    return {
+    const result = {
       sessionId,
       filePath: this.filePath,
       startTimestamp,
@@ -99,7 +141,10 @@ export class SessionParser {
       matchedSummaries:
         matchedSummaries.length > 0 ? matchedSummaries : undefined,
       previewMessages,
+      projectPath: projectPath || undefined,
     };
+
+    return result;
   }
 
   async parseForDisplay(): Promise<ParsedMessage[]> {

@@ -11,7 +11,7 @@ import {
 } from "./ui/renderer";
 import { colors } from "./ui/colors";
 import { SelectableItem } from "./types/ui";
-import { spawn, execSync } from "child_process";
+import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { SessionSummary } from "./types/session";
@@ -127,9 +127,32 @@ async function showSessions(): Promise<void> {
       } else {
         // Enter: Resume session (claude -r)
         try {
-          execSync("which claude", { stdio: "ignore" });
-          execSync(`claude -r ${String(selected.value)}`, { stdio: "inherit" });
-          process.exit(0);
+          // Get the session to find its project directory
+          const session = sessions.find((s) => s.sessionId === selected.value);
+          if (!session) {
+            console.error(colors.error("Session not found"));
+            shouldContinue = false;
+            return;
+          }
+
+          // Use the project path from session data
+          const projectPath = session.projectPath;
+
+          if (!projectPath) {
+            console.error(
+              colors.error("Project path not found in session data")
+            );
+            shouldContinue = false;
+            return;
+          }
+
+          // claude -r をプロジェクトディレクトリで直接実行
+          const proc = spawn("claude", ["-r", String(selected.value)], {
+            stdio: "inherit",
+            env: { ...process.env },
+            cwd: projectPath,
+          });
+          proc.on("exit", (code: number | null) => process.exit(code ?? 0));
         } catch (error) {
           console.error(
             colors.error(
@@ -170,8 +193,7 @@ async function showProjects(): Promise<void> {
       value: "",
     },
     {
-      display:
-        "Ctrl+P: Show Paths, Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n",
+      display: "Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n",
       searchText: "",
       value: "",
     },
@@ -211,23 +233,7 @@ async function showProjects(): Promise<void> {
       console.error(colors.error("パスが存在しません: " + selected.value));
       return;
     }
-    if (selected.action === "path") {
-      // Ctrl-P: Return project path
-      try {
-        execSync("which claude", { stdio: "ignore" });
-        execSync(`claude -r ${String(selected.value)}`, { stdio: "inherit" });
-        process.exit(0);
-      } catch (error) {
-        console.error(
-          colors.error(
-            "Error: claude command not found. Please install claude CLI first."
-          )
-        );
-        console.error(
-          colors.info("Install with: npm install -g @anthropic-ai/claude")
-        );
-      }
-    } else if (selected.action === "sessions") {
+    if (selected.action === "sessions") {
       // Ctrl-S: Show sessions for project
       await showProjectSessions(selected.value);
     } else if (selected.action === "files") {
@@ -350,7 +356,7 @@ async function showProjectSessions(projectPath: string): Promise<void> {
     try {
       const session = await parser.parseMinimal();
       sessions.push(session);
-    } catch (e) {
+    } catch {
       // Skip invalid files
     }
   }
@@ -365,7 +371,7 @@ async function showProjectSessions(projectPath: string): Promise<void> {
   // セッション一覧を表示
   const headerItems: SelectableItem[] = [
     {
-      display: "CREATED             MESSAGES  FIRST_MESSAGE",
+      display: "CREATED              MESSAGES  FIRST_MESSAGE",
       searchText: "",
       value: "",
     },
@@ -406,9 +412,26 @@ async function showProjectSessions(projectPath: string): Promise<void> {
     } else {
       // Enter: Resume session (claude -r)
       try {
-        execSync("which claude", { stdio: "ignore" });
-        execSync(`claude -r ${String(selected.value)}`, { stdio: "inherit" });
-        process.exit(0);
+        // Get the session to find its project directory
+        const session = sessions.find((s) => s.sessionId === selected.value);
+        if (!session) {
+          console.error(colors.error("Session not found"));
+          return;
+        }
+
+        const projectPath = session.projectPath;
+        if (!projectPath) {
+          console.error(colors.error("Project path not found in session data"));
+          return;
+        }
+
+        // claude -r をプロジェクトディレクトリで直接実行
+        const proc = spawn("claude", ["-r", String(selected.value)], {
+          stdio: "inherit",
+          env: { ...process.env },
+          cwd: projectPath,
+        });
+        proc.on("exit", (code: number | null) => process.exit(code ?? 0));
       } catch (error) {
         console.error(
           colors.error(
@@ -489,8 +512,12 @@ Navigation:
 Session Actions:
   Enter                    Resume session (claude -r)
   Ctrl+V                   View session content
-  Ctrl+P                   Return file path
-  Ctrl+R                   Resume session with claude -r`);
+  Ctrl+P                   Return file path (sessions only)
+
+Project Actions:
+  Enter                    Change to project directory
+  Ctrl+S                   Show sessions for project
+  Ctrl+F                   Get session file names`);
 }
 
 // Handle uncaught errors
