@@ -24,6 +24,7 @@ export class SessionParser {
     let lastTimestamp: Date | undefined;
     let firstUserMessage = "";
     let lineCount = 0;
+    let userMessageCount = 0;
     const matchedSummaries: string[] = [];
 
     const fileStream = fs.createReadStream(this.filePath);
@@ -48,8 +49,14 @@ export class SessionParser {
             startTimestamp = new Date(data.timestamp);
           }
 
-          if (!firstUserMessage && this.isUserMessage(data)) {
-            firstUserMessage = this.extractUserMessage(data);
+          if (this.isUserMessage(data)) {
+            const text = this.extractUserMessage(data).trim();
+            if (text.length > 0) {
+              userMessageCount++;
+              if (!firstUserMessage) {
+                firstUserMessage = text;
+              }
+            }
           }
 
           if (includeSummaries && data.type === "summary") {
@@ -77,17 +84,21 @@ export class SessionParser {
       throw new Error(`No valid timestamp found in ${this.filePath}`);
     }
 
+    // Get preview messages
+    const previewMessages = await this.parsePreview(10);
+
     return {
       sessionId,
       filePath: this.filePath,
       startTimestamp,
       lastTimestamp,
       firstUserMessage: firstUserMessage || "no user message",
-      messageCount: lineCount,
+      messageCount: userMessageCount,
       fileSize: stats.size,
       modificationTime: stats.mtime,
       matchedSummaries:
         matchedSummaries.length > 0 ? matchedSummaries : undefined,
+      previewMessages,
     };
   }
 
@@ -107,6 +118,40 @@ export class SessionParser {
         const data: RawSessionData = JSON.parse(line);
         if (data.type === "user" || data.type === "assistant") {
           messages.push(this.formatMessage(data));
+        }
+      } catch (error) {
+        // Skip invalid JSON
+      }
+    }
+
+    return messages;
+  }
+
+  async parsePreview(maxLines: number = 10): Promise<ParsedMessage[]> {
+    const fileStream = fs.createReadStream(this.filePath);
+    const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity,
+    });
+
+    const messages: ParsedMessage[] = [];
+    let lineCount = 0;
+
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+
+      try {
+        const data: RawSessionData = JSON.parse(line);
+        if (data.type === "user" || data.type === "assistant") {
+          // Skip tool use messages
+          if (!this.isToolMessage(data.message?.content)) {
+            messages.push(this.formatMessage(data));
+            lineCount++;
+
+            if (lineCount >= maxLines) {
+              break;
+            }
+          }
         }
       } catch (error) {
         // Skip invalid JSON

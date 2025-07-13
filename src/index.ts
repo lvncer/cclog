@@ -11,7 +11,7 @@ import {
 } from "./ui/renderer";
 import { colors } from "./ui/colors";
 import { SelectableItem } from "./types/ui";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { SessionSummary } from "./types/session";
@@ -71,7 +71,12 @@ async function showSessions(): Promise<void> {
       value: "",
     },
     {
-      display: "Enter: Return session ID, Ctrl+C: Exit",
+      display: "↑↓: Navigate, Enter: Resume, Ctrl+C: Exit",
+      searchText: "",
+      value: "",
+    },
+    {
+      display: "Ctrl+V: View, Ctrl+P: Show Paths\n",
       searchText: "",
       value: "",
     },
@@ -92,7 +97,7 @@ async function showSessions(): Promise<void> {
 
   const selector = new InteractiveSelector(allItems, {
     height: 20,
-    headerLines: 3,
+    headerLines: 4,
     preview: (item) => {
       if (headerItems.includes(item)) return "";
       const session = sessions.find((s) => s.sessionId === item.value);
@@ -100,23 +105,45 @@ async function showSessions(): Promise<void> {
     },
   });
 
-  const selected = await selector.show();
-  if (selected && !headerItems.includes(selected)) {
-    if (selected.action === "view") {
-      // Ctrl-V: View session content
-      const session = sessions.find((s) => s.sessionId === selected.value);
-      if (session) {
-        await viewSession(session.filePath);
-      }
-    } else if (selected.action === "path") {
-      // Ctrl-P: Return file path
-      const session = sessions.find((s) => s.sessionId === selected.value);
-      if (session) {
-        console.log(session.filePath);
+  let shouldContinue = true;
+  while (shouldContinue) {
+    const selected = await selector.show();
+    if (selected && !headerItems.includes(selected)) {
+      if (selected.action === "view") {
+        // Ctrl-V: View session content
+        const session = sessions.find((s) => s.sessionId === selected.value);
+        if (session) {
+          await viewSession(session.filePath);
+          // After viewing, continue the loop to show the session list again
+          continue;
+        }
+      } else if (selected.action === "path") {
+        // Ctrl-P: Return file path
+        const session = sessions.find((s) => s.sessionId === selected.value);
+        if (session) {
+          console.log(session.filePath);
+        }
+        shouldContinue = false;
+      } else {
+        // Enter: Resume session (claude -r)
+        try {
+          execSync("which claude", { stdio: "ignore" });
+          execSync(`claude -r ${String(selected.value)}`, { stdio: "inherit" });
+          process.exit(0);
+        } catch (error) {
+          console.error(
+            colors.error(
+              "Error: claude command not found. Please install claude CLI first."
+            )
+          );
+          console.error(
+            colors.info("Install with: npm install -g @anthropic-ai/claude")
+          );
+        }
+        shouldContinue = false;
       }
     } else {
-      // Enter: Return session ID
-      console.log(selected.value);
+      shouldContinue = false;
     }
   }
 }
@@ -133,7 +160,18 @@ async function showProjects(): Promise<void> {
   // Create header items
   const headerItems: SelectableItem[] = [
     {
-      display: "Claude Code Projects (sorted by recent activity)\n",
+      display: "Claude Code Projects (sorted by recent activity)",
+      searchText: "",
+      value: "",
+    },
+    {
+      display: "↑↓: Navigate, Enter: Change Directory, Ctrl+C: Exit",
+      searchText: "",
+      value: "",
+    },
+    {
+      display:
+        "Ctrl+P: Show Paths, Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n",
       searchText: "",
       value: "",
     },
@@ -160,10 +198,10 @@ async function showProjects(): Promise<void> {
 
   const selector = new InteractiveSelector(allItems, {
     height: 15,
-    headerLines: 2,
+    headerLines: 4,
     preview: (item) => {
       if (headerItems.includes(item)) return "";
-      return `cd ${item.value}`;
+      return "";
     },
   });
 
@@ -175,7 +213,20 @@ async function showProjects(): Promise<void> {
     }
     if (selected.action === "path") {
       // Ctrl-P: Return project path
-      console.log(selected.value);
+      try {
+        execSync("which claude", { stdio: "ignore" });
+        execSync(`claude -r ${String(selected.value)}`, { stdio: "inherit" });
+        process.exit(0);
+      } catch (error) {
+        console.error(
+          colors.error(
+            "Error: claude command not found. Please install claude CLI first."
+          )
+        );
+        console.error(
+          colors.info("Install with: npm install -g @anthropic-ai/claude")
+        );
+      }
     } else if (selected.action === "sessions") {
       // Ctrl-S: Show sessions for project
       await showProjectSessions(selected.value);
@@ -216,6 +267,12 @@ async function viewSession(filePath: string): Promise<void> {
     return;
   }
 
+  // Clear screen and show session content
+  console.clear();
+  console.log(colors.info("=== Session Content ==="));
+  console.log(colors.info(`File: ${filePath}`));
+  console.log("");
+
   for (const message of messages) {
     console.log(
       renderSessionMessage(
@@ -226,6 +283,28 @@ async function viewSession(filePath: string): Promise<void> {
       )
     );
   }
+
+  console.log("");
+  console.log(colors.info("Press any key to return to session list..."));
+
+  // Wait for user input before returning
+  await new Promise<void>((resolve) => {
+    const stdin = process.stdin;
+    const originalRawMode = stdin.isRaw;
+
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf8");
+
+    const onData = (data: Buffer) => {
+      stdin.setRawMode(originalRawMode);
+      stdin.pause();
+      stdin.removeListener("data", onData);
+      resolve();
+    };
+
+    stdin.on("data", onData);
+  });
 }
 
 async function showSessionInfo(filePath: string): Promise<void> {
@@ -325,8 +404,21 @@ async function showProjectSessions(projectPath: string): Promise<void> {
         console.log(session.filePath);
       }
     } else {
-      // Enter: Return session ID
-      console.log(selected.value);
+      // Enter: Resume session (claude -r)
+      try {
+        execSync("which claude", { stdio: "ignore" });
+        execSync(`claude -r ${String(selected.value)}`, { stdio: "inherit" });
+        process.exit(0);
+      } catch (error) {
+        console.error(
+          colors.error(
+            "Error: claude command not found. Please install claude CLI first."
+          )
+        );
+        console.error(
+          colors.info("Install with: npm install -g @anthropic-ai/claude")
+        );
+      }
     }
   }
 }
@@ -395,7 +487,7 @@ Navigation:
   Type text                Filter/search items
 
 Session Actions:
-  Enter                    Return session ID
+  Enter                    Resume session (claude -r)
   Ctrl+V                   View session content
   Ctrl+P                   Return file path
   Ctrl+R                   Resume session with claude -r`);

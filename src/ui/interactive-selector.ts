@@ -226,7 +226,7 @@ export class InteractiveSelector<T = any> {
     this.clearScreen();
 
     // Show search query
-    console.log(`> ${this.query}`);
+    console.log(`${this.query}`);
     console.log("");
 
     // Show header lines (always show if they exist)
@@ -247,7 +247,7 @@ export class InteractiveSelector<T = any> {
     displayItems.forEach((item, index) => {
       const actualIndex = index + this.headerLines;
       const isSelected = actualIndex === this.selectedIndex;
-      const prefix = isSelected ? "> " : "  ";
+      const prefix = "";
       const line = `${prefix}${item.display}`;
 
       if (isSelected) {
@@ -266,34 +266,6 @@ export class InteractiveSelector<T = any> {
     ) {
       console.log("\n" + "─".repeat(80));
       console.log(this.options.preview(selectedItem));
-    }
-
-    // Show help with additional keybindings
-    console.log();
-    if (this.selectedIndex >= this.headerLines) {
-      // Check if we're in projects view (items have path-like values)
-      const isProjectsView = this.items.some(
-        (item) =>
-          item.value &&
-          typeof item.value === "string" &&
-          item.value.includes("/")
-      );
-
-      if (isProjectsView) {
-        console.log(
-          colors.info(
-            "\n↑↓: Navigate, Enter: Change Directory, Ctrl+C: Exit\n"
-          ),
-          colors.info(
-            "Ctrl+P: Show Paths, Ctrl+S: Show Sessions, Ctrl+F: Get File Names\n"
-          )
-        );
-      } else {
-        console.log(
-          colors.info("\n↑↓: Navigate, Ctrl+C: Exit\n"),
-          colors.info("Ctrl+V: View, Ctrl+P: Show Paths, Ctrl+R: Resume\n")
-        );
-      }
     }
   }
 

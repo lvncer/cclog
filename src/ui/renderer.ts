@@ -4,7 +4,8 @@ import { colors } from "./colors";
 
 export function renderSessionList(session: SessionSummary): string {
   const startTime = session.startTimestamp.toLocaleString().substring(0, 19);
-  const messageCount = session.messageCount.toString().padStart(8);
+  const msgStr = session.messageCount.toString();
+  const messageCount = msgStr.length >= 8 ? msgStr : msgStr.padEnd(8);
 
   // Truncate long messages
   let message = session.firstUserMessage;
@@ -17,7 +18,9 @@ export function renderSessionList(session: SessionSummary): string {
 
 export function renderProjectList(project: Project): string {
   const lastActive = formatRelativeTime(project.lastActivity);
-  const sessionCount = project.sessionCount.toString().padStart(8);
+  const sessionStr = project.sessionCount.toString();
+  const sessionCount =
+    sessionStr.length >= 8 ? sessionStr : sessionStr.padEnd(8);
 
   // Truncate long paths
   let path = project.path;
@@ -52,6 +55,20 @@ export function renderSessionInfo(session: SessionSummary): string {
     lines.push("Topics:");
     session.matchedSummaries.slice(0, 5).forEach((summary) => {
       lines.push(`  • ${summary}`);
+    });
+  }
+
+  // Add conversation preview if available
+  if (session.previewMessages && session.previewMessages.length > 0) {
+    lines.push("");
+    lines.push("Preview:");
+    session.previewMessages.forEach((message) => {
+      const typeLabel = message.type === "user" ? "User: " : "Assistant: ";
+      const content =
+        message.content.length > 60
+          ? message.content.substring(0, 57) + "..."
+          : message.content;
+      lines.push(`  ${typeLabel}${content}`);
     });
   }
 

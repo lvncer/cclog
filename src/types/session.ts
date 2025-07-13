@@ -24,6 +24,7 @@ export interface SessionSummary {
   fileSize: number;
   modificationTime: Date;
   matchedSummaries: string[] | undefined;
+  previewMessages?: ParsedMessage[];
 }
 
 export interface ParsedMessage {
