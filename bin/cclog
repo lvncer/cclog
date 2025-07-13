@@ -1,12 +1,47 @@
 #!/usr/bin/env node
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-const project_manager_1 = require("../lib/core/project-manager");
-const session_parser_1 = require("../lib/core/session-parser");
-const interactive_selector_1 = require("../lib/ui/interactive-selector");
-const renderer_1 = require("../lib/ui/renderer");
-const colors_1 = require("../lib/ui/colors");
+const project_manager_1 = require("./core/project-manager");
+const session_parser_1 = require("./core/session-parser");
+const interactive_selector_1 = require("./ui/interactive-selector");
+const renderer_1 = require("./ui/renderer");
+const colors_1 = require("./ui/colors");
 const child_process_1 = require("child_process");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 async function main() {
     const args = process.argv.slice(2);
     const command = args[0];
@@ -111,26 +146,31 @@ async function showProjects() {
     }
     const headerItems = [
         {
-            display: "Claude Code Projects (sorted by recent activity)",
+            display: "Claude Code Projects (sorted by recent activity)\n",
             searchText: "",
             value: "",
         },
-        { display: "Enter: Show project path", searchText: "", value: "" },
         {
             display: "LAST_ACTIVE  SESSIONS  PROJECT_PATH",
             searchText: "",
             value: "",
         },
     ];
-    const projectItems = projects.map((project) => ({
-        display: (0, renderer_1.renderProjectList)(project),
-        searchText: project.path,
-        value: project.path,
-    }));
+    const projectItems = projects.map((project) => {
+        const exists = fs.existsSync(project.path);
+        return {
+            display: exists
+                ? (0, renderer_1.renderProjectList)(project)
+                : colors_1.colors.error((0, renderer_1.renderProjectList)(project) + " (NOT FOUND)"),
+            searchText: project.path,
+            value: project.path,
+            exists,
+        };
+    });
     const allItems = [...headerItems, ...projectItems];
     const selector = new interactive_selector_1.InteractiveSelector(allItems, {
         height: 15,
-        headerLines: 3,
+        headerLines: 2,
         preview: (item) => {
             if (headerItems.includes(item))
                 return "";
@@ -139,18 +179,31 @@ async function showProjects() {
     });
     const selected = await selector.show();
     if (selected && !headerItems.includes(selected)) {
-        if (selected.action === "view") {
-            const proc = (0, child_process_1.spawn)('sh', ['-c', `cd "${selected.value}" && cclog`], {
-                stdio: 'inherit',
-                cwd: process.cwd()
-            });
-            proc.on('exit', (code) => process.exit(code ?? 0));
+        if (!selected.exists) {
+            console.error(colors_1.colors.error("パスが存在しません: " + selected.value));
+            return;
         }
-        else if (selected.action === "path") {
+        if (selected.action === "path") {
             console.log(selected.value);
         }
+        else if (selected.action === "sessions") {
+            await showProjectSessions(selected.value);
+        }
+        else if (selected.action === "files") {
+            await showSessionFileNames(selected.value);
+        }
         else {
-            console.log(`cd ${selected.value}`);
+            try {
+                const proc = (0, child_process_1.spawn)("sh", ["-c", `cd "${selected.value}" && exec $SHELL`], {
+                    stdio: "inherit",
+                    cwd: process.cwd(),
+                });
+                proc.on("exit", (code) => process.exit(code ?? 0));
+            }
+            catch (error) {
+                console.error(colors_1.colors.error(`ディレクトリの変更に失敗しました: ${selected.value}`));
+                console.error(colors_1.colors.error(error instanceof Error ? error.message : "Unknown error"));
+            }
         }
     }
 }
@@ -170,33 +223,136 @@ async function showSessionInfo(filePath) {
     const session = await parser.parseMinimal();
     console.log((0, renderer_1.renderSessionInfo)(session));
 }
+async function showProjectSessions(projectPath) {
+    const projectManager = new project_manager_1.ProjectManager();
+    const projects = await projectManager.getAllProjects();
+    const project = projects.find((p) => p.path === projectPath);
+    if (!project) {
+        console.error(colors_1.colors.error("プロジェクトが見つかりません: " + projectPath));
+        return;
+    }
+    const claudeDir = path.join(process.env.HOME || "", ".claude", "projects");
+    const projectDir = path.join(claudeDir, project.encodedName);
+    if (!fs.existsSync(projectDir)) {
+        console.error(colors_1.colors.error("プロジェクトディレクトリが見つかりません: " + projectDir));
+        return;
+    }
+    const files = await fs.promises.readdir(projectDir);
+    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    if (jsonlFiles.length === 0) {
+        console.log("このプロジェクトにはセッションがありません");
+        return;
+    }
+    const sessions = [];
+    for (const file of jsonlFiles) {
+        const filePath = path.join(projectDir, file);
+        const parser = new session_parser_1.SessionParser(filePath);
+        try {
+            const session = await parser.parseMinimal();
+            sessions.push(session);
+        }
+        catch (e) {
+        }
+    }
+    sessions.sort((a, b) => b.modificationTime.getTime() - a.modificationTime.getTime());
+    console.log(colors_1.colors.info(`\nプロジェクト: ${projectPath}`));
+    console.log(colors_1.colors.info(`セッション数: ${sessions.length}\n`));
+    const headerItems = [
+        {
+            display: "CREATED             MESSAGES  FIRST_MESSAGE",
+            searchText: "",
+            value: "",
+        },
+    ];
+    const sessionItems = sessions.map((session) => ({
+        display: (0, renderer_1.renderSessionList)(session),
+        searchText: `${session.sessionId} ${session.firstUserMessage}`,
+        value: session.sessionId,
+    }));
+    const allItems = [...headerItems, ...sessionItems];
+    const selector = new interactive_selector_1.InteractiveSelector(allItems, {
+        height: 20,
+        headerLines: 1,
+        preview: (item) => {
+            if (headerItems.includes(item))
+                return "";
+            const session = sessions.find((s) => s.sessionId === item.value);
+            return session ? (0, renderer_1.renderSessionInfo)(session) : "";
+        },
+    });
+    const selected = await selector.show();
+    if (selected && !headerItems.includes(selected)) {
+        if (selected.action === "view") {
+            const session = sessions.find((s) => s.sessionId === selected.value);
+            if (session) {
+                await viewSession(session.filePath);
+            }
+        }
+        else if (selected.action === "path") {
+            const session = sessions.find((s) => s.sessionId === selected.value);
+            if (session) {
+                console.log(session.filePath);
+            }
+        }
+        else {
+            console.log(selected.value);
+        }
+    }
+}
+async function showSessionFileNames(projectPath) {
+    const projectManager = new project_manager_1.ProjectManager();
+    const projects = await projectManager.getAllProjects();
+    const project = projects.find((p) => p.path === projectPath);
+    if (!project) {
+        console.error(colors_1.colors.error("プロジェクトが見つかりません: " + projectPath));
+        return;
+    }
+    const claudeDir = path.join(process.env.HOME || "", ".claude", "projects");
+    const projectDir = path.join(claudeDir, project.encodedName);
+    if (!fs.existsSync(projectDir)) {
+        console.error(colors_1.colors.error("プロジェクトディレクトリが見つかりません: " + projectDir));
+        return;
+    }
+    const files = await fs.promises.readdir(projectDir);
+    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    if (jsonlFiles.length === 0) {
+        console.log("このプロジェクトにはセッションがありません");
+        return;
+    }
+    console.log(colors_1.colors.info(`\nプロジェクト: ${projectPath}`));
+    console.log(colors_1.colors.info(`セッションファイル一覧:\n`));
+    jsonlFiles.forEach((fileName, index) => {
+        console.log(`${index + 1}. ${fileName}`);
+    });
+    console.log(colors_1.colors.info(`\n合計: ${jsonlFiles.length}個のセッションファイル`));
+}
 function showHelp() {
     console.log(`cclog - Browse Claude Code conversation history
 
 Usage:
-  cclog [options]           Browse sessions in current directory
-  cclog projects            Browse all projects
-  cclog view <session>      View session content
-  cclog info <session>      Show session information
+  cclog [options]          Browse sessions in current directory
+  cclog projects           Browse all projects
+  cclog view <session>     View session content
+  cclog info <session>     Show session information
   cclog help               Show this help message
 
 Options:
-  projects, p                       Browse all projects
-  view, v                          View session content
-  info, i                          Show session information
-  help, h, --help, -h              Show help
+  projects, p              Browse all projects
+  view, v                  View session content
+  info, i                  Show session information
+  help, h, --help, -h      Show help
 
 Navigation:
-  ↑↓ keys                          Navigate list
-  Enter                            Select item
-  Ctrl+C                           Exit
-  Type text                        Filter/search items
+  ↑↓ keys                  Navigate list
+  Enter                    Select item
+  Ctrl+C                   Exit
+  Type text                Filter/search items
 
 Session Actions:
-  Enter                            Return session ID
-  Ctrl+V                           View session content
-  Ctrl+P                           Return file path
-  Ctrl+R                           Resume session with claude -r`);
+  Enter                    Return session ID
+  Ctrl+V                   View session content
+  Ctrl+P                   Return file path
+  Ctrl+R                   Resume session with claude -r`);
 }
 process.on("unhandledRejection", (reason, promise) => {
     console.error(colors_1.colors.error("Unhandled Rejection at:"), promise, colors_1.colors.error("reason:"), reason);

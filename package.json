@@ -1,7 +1,7 @@
 {
   "name": "@lvncer/cclog",
   "license": "MIT",
-  "version": "1.0.9",
+  "version": "1.0.13",
   "author": "lvncer",
   "description": "TypeScript implementation of cclog - Browse Claude Code conversation history",
   "main": "lib/index.js",
@@ -10,7 +10,7 @@
     "cclog": "bin/cclog"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp lib/index.js bin/cclog",
     "dev": "ts-node src/index.ts",
     "start": "node lib/index.js",
     "clean": "rm -rf lib"
